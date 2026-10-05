@@ -2,7 +2,7 @@
 # License LGPL-3.0 or later (http://www.gnu.org/licenses/lgpl.html).
 
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest import mock
 
 from passlib.totp import TOTP
@@ -57,7 +57,7 @@ class TestTOTP(HttpCase):
 
         # Expire the password so that web_totp() kicks the user out once the
         # second factor succeeds.
-        user.password_write_date = datetime.now() - timedelta(days=3)
+        user.password_write_date = datetime.now(timezone.utc) - timedelta(days=3)
         self.env["ir.config_parameter"].sudo().set_param(
             "password_security.expiration_days", 1
         )

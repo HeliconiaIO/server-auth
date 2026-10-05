@@ -50,12 +50,12 @@ class PasswordSecurityHome(AuthSignupHome):
 
         try:
             qcontext = self.get_auth_signup_qcontext()
-        except Exception:
+        except Exception:  # noqa: BLE001
             raise BadRequest from None  # HTTPError: 400 Client Error: BAD REQUEST
 
         try:
             return super().web_auth_signup(*args, **kw)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             # Here we catch any generic exception since UserError is already
             # handled in parent method web_auth_signup()
             qcontext["error"] = str(e)

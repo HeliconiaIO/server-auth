@@ -1,7 +1,7 @@
 # Copyright 2023 Onestein (<https://www.onestein.eu>)
 # License LGPL-3.0 or later (http://www.gnu.org/licenses/lgpl.html).
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest import mock
 
 from odoo import http
@@ -81,7 +81,7 @@ class TestPasswordSecurityLogin(HttpCase):
         """It should expire password if necessary"""
 
         # Make password expired
-        three_days_ago = datetime.now() - timedelta(days=3)
+        three_days_ago = datetime.now(timezone.utc) - timedelta(days=3)
 
         with Registry(get_db_name()).cursor() as cr:
             env = self.env(cr)
@@ -108,7 +108,7 @@ class TestPasswordSecurityLogin(HttpCase):
         self.assertEqual(response.status_code, 200)
 
         # Make password expired while still logged in
-        three_days_ago = datetime.now() - timedelta(days=3)
+        three_days_ago = datetime.now(timezone.utc) - timedelta(days=3)
 
         with Registry(get_db_name()).cursor() as cr:
             env = self.env(cr)
@@ -175,7 +175,7 @@ class TestPasswordSecurityLogin(HttpCase):
             # user.login_date` only reaches login_date when user.tz is truthy.
             user.tz = tz
             # Expire the password so that web_login() bounces to the reset page
-            user.password_write_date = datetime.now() - timedelta(days=3)
+            user.password_write_date = datetime.now(timezone.utc) - timedelta(days=3)
             env["ir.config_parameter"].sudo().set_param(
                 "password_security.expiration_days", 1
             )
@@ -187,7 +187,7 @@ class TestPasswordSecurityLogin(HttpCase):
             # move it, and it cannot be passed in the create values either
             # since LOG_ACCESS_COLUMNS are dropped from them. Patch the cursor
             # clock around the create instead.
-            two_days_ago = datetime.now() - timedelta(days=2)
+            two_days_ago = datetime.now(timezone.utc) - timedelta(days=2)
             with mock.patch.object(type(cr), "now", return_value=two_days_ago):
                 # sudo() keeps env.uid, so create_uid is still the user,
                 # while granting the admin-only create on res.users.log.
