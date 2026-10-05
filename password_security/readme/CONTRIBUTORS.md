@@ -21,3 +21,6 @@
 
 - [Onestein](https://www.onestein.nl):
   - Andrea Stirpe \<<a.stirpe@onestein.nl>\>
+
+- [Heliconia Solutions Pvt. Ltd.](https://www.heliconia.io)
+  - Bhavesh Heliconia

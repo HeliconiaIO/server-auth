@@ -4,15 +4,14 @@
 # License LGPL-3.0 or later (http://www.gnu.org/licenses/lgpl.html).
 
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 
-from odoo import api, fields, models, modules
+from odoo import api, fields, models, modules, tools
 from odoo.exceptions import UserError, ValidationError
-from odoo.tools import config
 
 
 def delta_now(**kwargs):
-    return datetime.now(timezone.utc) + timedelta(**kwargs)
+    return fields.Datetime.now() + timedelta(**kwargs)
 
 
 class ResUsers(models.Model):
@@ -36,20 +35,18 @@ class ResUsers(models.Model):
     def _get_all_password_params(self):
         params = self.env["ir.config_parameter"].sudo()
         res = {
-            "minlength": int(
-                params.get_param("auth_password_policy.minlength", default=0)
+            "minlength": params.get_int("auth_password_policy.minlength", default=0),
+            "expiration_days": params.get_int(
+                "password_security.expiration_days", default=60
             ),
-            "expiration_days": int(
-                params.get_param("password_security.expiration_days", default=60)
+            "minimum_hours": params.get_int(
+                "password_security.minimum_hours", default=60
             ),
-            "minimum_hours": int(
-                params.get_param("password_security.minimum_hours", default=60)
-            ),
-            "history": int(params.get_param("password_security.history", default=30)),
-            "lower": int(params.get_param("password_security.lower", default=1)),
-            "upper": int(params.get_param("password_security.upper", default=1)),
-            "numeric": int(params.get_param("password_security.numeric", default=1)),
-            "special": int(params.get_param("password_security.special", default=1)),
+            "history": params.get_int("password_security.history", default=30),
+            "lower": params.get_int("password_security.lower", default=1),
+            "upper": params.get_int("password_security.upper", default=1),
+            "numeric": params.get_int("password_security.numeric", default=1),
+            "special": params.get_int("password_security.special", default=1),
         }
         return res
 
@@ -67,15 +64,18 @@ class ResUsers(models.Model):
         )
         return data
 
+    def _skip_password_security(self):
+        """Skip the checks while loading data files, and when running the
+        tests of other modules, so that they don't need compliant passwords."""
+        if self.env.context.get("install_mode"):
+            return True
+        if not tools.config["test_enable"]:
+            return False
+        current_test = modules.module.current_test
+        return getattr(current_test, "test_module", None) != "password_security"
+
     def _check_password_policy(self, passwords):
-        if (
-            (
-                config["test_enable"]
-                and modules.module.current_test.test_module != "password_security"
-            )
-            # Skip the check while loading data files, to avoid blocking installations
-            or self.env.context.get("install_mode")
-        ):
+        if self._skip_password_security():
             return True
         result = super()._check_password_policy(passwords)
 
@@ -93,22 +93,19 @@ class ResUsers(models.Model):
         if pwd_params["lower"]:
             message.append(
                 self.env._(
-                    "\n* Lowercase letter (at least %s characters)",
-                    pwd_params["lower"],
+                    "\n* Lowercase letter (at least %s characters)", pwd_params["lower"]
                 )
             )
         if pwd_params["upper"]:
             message.append(
                 self.env._(
-                    "\n* Uppercase letter (at least %s characters)",
-                    pwd_params["upper"],
+                    "\n* Uppercase letter (at least %s characters)", pwd_params["upper"]
                 )
             )
         if pwd_params["numeric"]:
             message.append(
                 self.env._(
-                    "\n* Numeric digit (at least %s characters)",
-                    pwd_params["numeric"],
+                    "\n* Numeric digit (at least %s characters)", pwd_params["numeric"]
                 )
             )
         if pwd_params["special"]:
@@ -124,8 +121,7 @@ class ResUsers(models.Model):
         if pwd_params["minlength"]:
             message = [
                 self.env._(
-                    "Password must be %d characters or more.",
-                    pwd_params["minlength"],
+                    "Password must be %d characters or more.", pwd_params["minlength"]
                 )
             ] + message
         return "\r".join(message)
@@ -137,10 +133,7 @@ class ResUsers(models.Model):
 
     def _check_password_rules(self, password):
         self.ensure_one()
-        if not password or (
-            config["test_enable"]
-            and modules.module.current_test.test_module != "password_security"
-        ):
+        if not password or self._skip_password_security():
             return True
         pwd_params = self._get_all_password_params()
         password_regex = [
@@ -149,7 +142,7 @@ class ResUsers(models.Model):
             "(?=.*?[A-Z]){" + str(pwd_params["upper"]) + ",}",
             "(?=.*?\\d){" + str(pwd_params["numeric"]) + ",}",
             r"(?=.*?[\W_]){" + str(pwd_params["special"]) + ",}",
-            ".{" + str(pwd_params["minlength"]) + ",}$",
+            f".{{{pwd_params['minlength']},}}$",
         ]
         if not re.search("".join(password_regex), password):
             raise ValidationError(self.password_match_message())
@@ -183,7 +176,7 @@ class ResUsers(models.Model):
                 continue
             write_date = user.password_write_date
             delta = timedelta(hours=pwd_params["minimum_hours"])
-            if write_date + delta > datetime.now(timezone.utc):
+            if write_date + delta > fields.Datetime.now():
                 raise UserError(
                     self.env._(
                         "Passwords can only be reset every %d hour(s). "

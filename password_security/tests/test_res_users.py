@@ -4,7 +4,7 @@
 import time
 
 from odoo.exceptions import UserError
-from odoo.tests.common import TransactionCase, new_test_user
+from odoo.tests.common import TransactionCase
 
 
 class TestResUsers(TransactionCase):
@@ -131,7 +131,7 @@ class TestResUsers(TransactionCase):
     def test_validate_pass_reset_zero(self):
         """It should allow reset pass when <= 0"""
         rec_id = self._new_record()
-        self.env["ir.config_parameter"].sudo().set_param(
+        self.env["ir.config_parameter"].sudo().set_int(
             "password_security.minimum_hours", 0
         )
         self.assertEqual(
@@ -143,20 +143,21 @@ class TestResUsers(TransactionCase):
         password_special = int(
             self.env["ir.config_parameter"]
             .sudo()
-            .get_param("password_security.special", default=1)
+            .get_int("password_security.special", default=1)
         )
         self.assertTrue(password_special)
         rec_id = self._new_record()
         rec_id._check_password("asdQWE12345_3")
 
     def test_user_with_admin_rights_can_create_users(self):
-        # Demo data is not loaded on the OCA CI, so base.user_demo cannot be
-        # relied upon; provide an equivalent user instead.
-        manager = new_test_user(
-            self.env,
-            "manager",
-            groups="base.group_user,base.group_partner_manager,base.group_erp_manager",
-            password=self.password,
+        """An ERP Manager can create users without a password"""
+        manager = self.model_obj.create(
+            {
+                "login": "test_erp_manager",
+                "name": "Test ERP Manager",
+                "password": "asdQWE123$%^",
+                "group_ids": [(4, self.env.ref("base.group_erp_manager").id)],
+            }
         )
         test1 = self.model_obj.with_user(manager).create(
             {

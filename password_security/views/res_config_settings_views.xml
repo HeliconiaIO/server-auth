@@ -12,7 +12,7 @@
             ref="auth_password_policy.res_config_settings_view_form"
         />
         <field name="arch" type="xml">
-            <!-- Ensure our settings will come after any former customization -->
+            <!-- Placer les paramètres après les droits utilisateurs par défaut -->
             <xpath expr="//block[@id='user_default_rights']" position="after">
                 <block title="Password Policy" id="password_policy">
                     <setting>
@@ -69,7 +69,7 @@
                 </block>
             </xpath>
 
-            <!-- Move the minlength field to desired location -->
+            <!-- Déplacer les champs minlength et reset_password dans le bloc policy -->
             <xpath expr="//block[@id='password_policy']" position="inside">
                 <xpath expr="//field[@name='minlength']/.." position="move" />
                 <xpath

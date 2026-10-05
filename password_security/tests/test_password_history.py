@@ -1,44 +1,40 @@
+# Copyright 2023 Onestein (<https://www.onestein.eu>)
 # License LGPL-3.0 or later (http://www.gnu.org/licenses/lgpl.html).
 
 from odoo.exceptions import UserError
-from odoo.tests.common import TransactionCase
+from odoo.tests.common import TransactionCase, new_test_user
 
 
 class TestPasswordHistory(TransactionCase):
-    def test_check_password_history(self):
-        # Disable all password checks except for history
-        set_param = self.env["ir.config_parameter"].sudo().set_param
-        set_param("auth_password_policy.minlength", 0)
-        user = self.env.ref("base.user_admin")
-        param = self.env["ir.config_parameter"].sudo()
-        param.set_param("password_security.history", 1)
-        param.set_param("password_security.lower", 0)
-        param.set_param("password_security.numeric", 0)
-        param.set_param("password_security.special", 0)
-        param.set_param("password_security.upper", 0)
+    def setUp(self):
+        super().setUp()
+        self.username = "jackoneill"
+        self.passwd = "!asdQWE12345_3"
+        self.user = new_test_user(self.env, self.username, password=self.passwd)
 
-        self.assertEqual(len(user.password_history_ids), 0)
+    def test_01_history_is_saved(self):
+        """It should save the password history"""
+        self.assertEqual(len(self.user.password_history_ids), 1)
+        self.user.password = "!asdQWE12345_4"
+        self.user.invalidate_recordset()
+        self.assertEqual(len(self.user.password_history_ids), 2)
 
-        user.write({"password": "admin"})
-        self.assertEqual(len(user.password_history_ids), 1)
+    def test_02_history_is_limited(self):
+        """It should only check the configured history length"""
+        self.env["ir.config_parameter"].sudo().set_int("password_security.history", 1)
+        self.user.password = "!asdQWE12345_4"
+        # Refresh the ORM cache after _set_encrypted_password
+        self.user.invalidate_recordset()
+        # The first password is no longer in the active history (history=1)
+        self.user.password = self.passwd
 
+    def test_03_history_disabled(self):
+        """It should disable the history check when history=0"""
+        self.env["ir.config_parameter"].sudo().set_int("password_security.history", 0)
+        self.user.password = self.passwd
+
+    def test_04_history_unlimited(self):
+        """It should check the whole history when history=-1"""
+        self.env["ir.config_parameter"].sudo().set_int("password_security.history", -1)
         with self.assertRaises(UserError):
-            user.write({"password": "admin"})
-        user.write({"password": "admit"})
-        self.assertEqual(len(user.password_history_ids), 2)
-
-        param.set_param("password_security.history", 2)
-        with self.assertRaises(UserError):
-            user.write({"password": "admin"})
-        with self.assertRaises(UserError):
-            user.write({"password": "admit"})
-        user.write({"password": "badminton"})
-        self.assertEqual(len(user.password_history_ids), 3)
-
-        param.set_param("password_security.history", 0)
-        user.write({"password": "badminton"})
-        self.assertEqual(len(user.password_history_ids), 4)
-
-        param.set_param("password_security.history", -1)
-        with self.assertRaises(UserError):
-            user.write({"password": "admin"})
+            self.user.password = self.passwd

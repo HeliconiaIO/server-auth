@@ -3,6 +3,7 @@
 
 from odoo import http
 from odoo.http import request
+from odoo.http.session import logout
 
 from odoo.addons.auth_totp.controllers.home import Home
 
@@ -16,13 +17,14 @@ class PasswordSecurity2FAHome(Home):
             request.session.uid and request.env.user._password_has_expired()
         ):
             return result
-        # My password is expired, kick me out
+        # Password expired: force a proper logout.
+        # `Session` has NO `logout` method in Odoo 20 — `logout` is a
+        # module-level function in `odoo.http.session` that clears the session
+        # and flags it for rotation. The previous `request.session.logout(...)`
+        # call raised AttributeError which, if swallowed upstream, left the
+        # user authenticated with a stale session_token (session bleed).
         request.env.user.action_expire_password()
-        request.session.logout(keep_db=True)
-        # res.users._login() loaded login_date into this env's cache before
-        # _update_last_login() created the new res.users.log, so the cached
-        # value is stale. _generate_signup_token() signs login_date into the
-        # token, and a stale one is rejected as an invalid signup token.
-        request.env.user.invalidate_recordset(["login_date", "log_ids"])
+        logout(request.session, keep_db=True)
+        request.params["login_success"] = False
         redirect = request.env.user.partner_id._get_signup_url()
         return request.redirect(redirect)

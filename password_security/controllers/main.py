@@ -1,14 +1,18 @@
 # Copyright 2015 LasLabs Inc.
 # License LGPL-3.0 or later (http://www.gnu.org/licenses/lgpl.html).
 
+import logging
 
 from werkzeug.exceptions import BadRequest
 
 from odoo import http
 from odoo.http import request
+from odoo.http.session import logout
 
 from odoo.addons.auth_signup.controllers.main import AuthSignupHome
 from odoo.addons.web.controllers.home import ensure_db
+
+_logger = logging.getLogger(__name__)
 
 
 class PasswordSecurityHome(AuthSignupHome):
@@ -32,8 +36,7 @@ class PasswordSecurityHome(AuthSignupHome):
             return response
         # My password is expired, kick me out
         request.env.user.action_expire_password()
-        request.session.logout(keep_db=True)
-        # I was kicked out, so set login_success in request params to False
+        logout(request.session, keep_db=True)
         request.params["login_success"] = False
         # res.users._login() loaded login_date into this env's cache before
         # _update_last_login() created the new res.users.log, so the cached
